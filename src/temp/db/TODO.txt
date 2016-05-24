@@ -1,0 +1,1 @@
+do api dostęp do ID po nazwie

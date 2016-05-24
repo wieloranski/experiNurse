@@ -1,0 +1,10 @@
+collect_diagnosis
+    foreach
+        patient.feels($patient, $symptom)
+        python diseases = []
+        forall
+            choroby.symptom_of($symptom, $disease)
+            python diseases.append($disease)
+        $diseases = tuple(diseases)
+    assert
+        patient.suffers_from($patient, $diseases)

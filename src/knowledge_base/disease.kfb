@@ -1,0 +1,4 @@
+symptom_of(headache, brain_cancer)
+symptom_of(headache, stress)
+symptom_of(arm_pain, arm_broken)
+symptom_of(fever, cold)
