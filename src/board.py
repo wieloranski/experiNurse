@@ -3,9 +3,7 @@
 
 """
 ExperiNurse preAlpha v.1.0.0
-
 Left panel with board
-
 author: Konrad "Ironus" Zierek
 website: github.com/Ironus/DSZI
 last edited: March 2016
@@ -17,17 +15,20 @@ import os
 import time
 import collections
 import heapq
+import threading
+from random import randint
 from helpers import Searcher
+from object_class import Object
 from PyQt5.QtWidgets import QFrame
-from PyQt5.QtCore import QBasicTimer, pyqtSlot, QPoint, Qt, QRect
+from PyQt5.QtCore import QBasicTimer, pyqtSlot, pyqtSignal,QPoint, Qt, QRect
 from PyQt5.QtGui import QPainter, QColor, QImage, QBrush, QTransform, \
     QPicture, QPixmap
 from knowledge_base.driver import *
 from symp_scanner import SymptomLoader
 from diag import Diagnosis
-from console import *
+from check import *
 
-
+dict = {}
 class SquareGrid:
     """
     Grid used as a replacement for SimpleGraph
@@ -198,11 +199,16 @@ class Object:
 
         return self.name
 
+    def changePixmap(self, pixmap_id):
+        self.pixmap_id = pixmap_id
+
 
 class Board(QFrame):
     """
     Main board drawing ambulatory room + animation
     """
+
+    emitText = pyqtSignal(str)
 
     refreshRate = 300
     board_width = 720
@@ -217,8 +223,10 @@ class Board(QFrame):
 
     player_x = 0
     player_y = 160
+    is_operating = False
 
     inference_method = "Regułowe"
+    pathFinding = "aStar"
 
     def __init__(self, parent):
 
@@ -232,6 +240,8 @@ class Board(QFrame):
         # setting logical value for information about animation state
         self.isStopped = False
         self.isActive = False
+
+        self.symptoms = []
 
         # creating empty list of points of size board_width x board_height
         self.board = [
@@ -251,7 +261,7 @@ class Board(QFrame):
             Object("curtain2",  (240, 0),   (80, 160),  7),
             Object("bed2",      (320, 0),   (80, 160),  4),
             Object("curtain3",  (480, 0),   (80, 160),  7),
-            Object("bed3",      (560, 0),   (80, 160),  6),
+            Object("bed3",      (560, 0),   (80, 160),  5),
             # Object("table_top", (640, 240), (80, 80),   8, 90),
             Object("table",     (640, 400), (80, 80),   9, 90),
             Object("curtain4",  (0, 240),   (160, 80),  7, 90),
@@ -259,6 +269,10 @@ class Board(QFrame):
             Object("curtain5",  (0, 480),   (160, 80),  7, 90),
             # Object
         }
+
+        for obj in self.objects:
+            if obj.getName() == 'bed3' or obj.getName() == 'bed4':
+                obj.changePixmap(4)
 
         """
         Creating graph to get paths
@@ -274,51 +288,81 @@ class Board(QFrame):
         # creating timer
         self.timer = QBasicTimer()
 
+    def diagnose(self):
+        self.is_operating = True
+        get_symptoms_disease_relation_from_rows()
+        if self.inference_method == 'Regułowe':
+            diseases_list = []
+            symptom_list = []
+            name = str(randint(0, 1000000))
+            while (True):
+                self.emitText.emit("Nurse: Co Ci dolega?")
+
+                while not self.symptoms:
+                    time.sleep(0.1)
+                if (self.symptoms): symptom_list.append(self.symptoms)
+
+                symp = check_knowledge(dict, self.symptoms)
+                print(dict)
+                if (check_knowledge(dict, self.symptoms)):
+                    result = check_knowledge(dict, self.symptoms)
+                    self.emitText.emit("masz %s ?" % result[0])
+                    self.emitText.emit("Jeśli tak to cierpisz na %s" % result[1])
+                    break
+                diseases_list = Diagnosis.perform_diagnosis(name, self.symptoms)
+                if (len(diseases_list) == 1):
+                    break
+                else:
+                    self.emitText.emit("--Liczba możliwych chorób to: %s--" % len(diseases_list))
+                self.symptoms = []
+
+            if (diseases_list):
+                self.emitText.emit("%s cierpi na: %s" % (name, diseases_list[0]))
+                key = str(diseases_list[0])
+                dict.setdefault(key, [])
+                dict.update({key: symptom_list})
+
+            self.getPatientOufOf(self.current_bed)
+            self.is_operating = False
+            self.symptoms = []
+
     @pyqtSlot(str)
     def inferenceEmitted(self, method):
         self.inference_method = method
 
     @pyqtSlot(str)
-    def textEmitted(self, aliment):
-        if self.inference_method == "Regułowe":
-            get_symptoms_disease_relation_from_rows()
-            name = "Mathew"
-            symptoms_list = []
-            symptoms_list = SymptomLoader.scanInput(aliment)
+    def pathMethod(self, method):
+        if method == "A Star":
+            self.pathFinding = "aStar"
+        elif method == "Dijkstra":
+            self.pathFinding = "dijkstra"
 
+    @pyqtSlot()
+    def newPatient(self):
+        emptyBeds = self.getEmptyBeds()
 
-            if symptoms_list:
-                Diagnosis.perform_diagnosis(name, symptoms_list)
+        if emptyBeds:
+            index = randint(0, len(emptyBeds) - 1)
+            self.putPatientInto(emptyBeds[index].getName())
+        else:
+            self.emitText.emit('Brak wolnych lóżek')
 
+    @pyqtSlot(str)
+    def textEmitted(self, symptoms):
 
-        """
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!TEMPORARY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        If you want to rewrite that function, then just write a new one
-        and here change the function name(!)
-
-        listOfPoints = points.split()
-        pointX = int(int(listOfPoints[0]) / 80)
-        pointY = int(int(listOfPoints[1]) / 80)
-
-        playerX = int(self.player_x / 80)
-        playerY = int(self.player_y / 80)
-
-        cameFrom, costSoFar = self.aStarSearch(self.graph,
-                                               (playerX, playerY),
-                                               (pointX, pointY))
-
-        self.path = self.reconstructPath(cameFrom,
-                                         (playerX, playerY),
-                                         (pointX, pointY))
-        print(self.path)
-        """
+        self.symptoms = SymptomLoader.scanInput(symptoms)
 
     def loadPixmaps(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         base_dir = base_dir[:-4]
 
         # tiles = QImage(base_dir + r'/images/40_kafelki.gif')
-        tiles = QImage(base_dir + r'/images/kafelki.gif')
+        # tiles = QImage(base_dir + r'/images/podloga80x80.png')
+        # tiles = QImage(base_dir + r'/images/podloga1_80x80.png')
+        # tiles = QImage(base_dir + r'/images/podloga2_80x80.png')
+        # tiles = QImage(base_dir + r'/images/podloga3_80x80.png')
+        tiles = QImage(base_dir + r'/images/podloga4_80x80.png')
+        # tiles = QImage(base_dir + r'/images/kafelki.gif')
         self.tiles_brush = QBrush(tiles)
 
         """
@@ -344,6 +388,30 @@ class Board(QFrame):
         """
         self.nurse_right_pixmap = QPixmap(base_dir +
                                           r'/images/nurse_right80x80.png')
+
+        # self.nurse_pixmap = QPixmap(base_dir +
+        # r'/images/nurse_standing40x40.png')
+        # self.nurse_pixmap = QPixmap(base_dir +
+        # r'/images/nurse_standing80x80.png')
+        self.nurse_pixmap = QPixmap(base_dir +
+        r'/images/pigula_koczek80x80.png')
+        self.nurse_pixmap_base = self.nurse_pixmap
+
+        # self.nurse_left_pixmap = QPixmap(base_dir +
+        # r'/images/nurse_left40x40.png')
+        # self.nurse_left_pixmap = QPixmap(base_dir +
+        # r'/images/nurse_left80x80.png')
+        self.nurse_left_pixmap = QPixmap(base_dir +
+        r'/images/pigula_koczek_lewa80x80.png')
+        self.nurse_left_pixmap_base = self.nurse_left_pixmap
+
+        # self.nurse_right_pixmap = QPixmap(base_dir +
+        # r'/images/nurse_right40x40.png')
+        # self.nurse_right_pixmap = QPixmap(base_dir +
+        # r'/images/nurse_right80x80.png')
+        self.nurse_right_pixmap = QPixmap(base_dir +
+        r'/images/pigula_koczek_prawa80x80.png')
+
         self.nurse_right_pixmap_base = self.nurse_right_pixmap
 
         """
@@ -362,6 +430,13 @@ class Board(QFrame):
         self.girl_alarm_pixmap = QPixmap(base_dir +
                                          r'/images/girlAlarm80x160.gif')
 
+        # self.empty_bed_pixmap = QPixmap(base_dir +
+        # r'/images/lozko40x80.gif')
+        # self.empty_bed_pixmap = QPixmap(base_dir +
+        # r'/images/lozko80x160.gif')
+        self.empty_bed_pixmap = QPixmap(base_dir +
+        r'/images/lozko7_80x160.png')
+
         """
         self.girl_sleeping_pixmap = QPixmap(base_dir +
                                             r'/images/girlSleeping40x80.gif')
@@ -369,6 +444,12 @@ class Board(QFrame):
 
         self.girl_sleeping_pixmap = QPixmap(base_dir +
                                             r'/images/girlSleeping80x160.gif')
+        # self.girl_sleeping_pixmap = QPixmap(base_dir +
+        # r'/images/girlSleeping40x80.gif')
+        # self.girl_sleeping_pixmap = QPixmap(base_dir +
+        # r'/images/girlSleeping80x160.gif')
+        self.girl_sleeping_pixmap = QPixmap(base_dir +
+        r'/images/lozko7_asleep_80x160.png')
 
         # self.table_top_pixmap = QPixmap(base_dir + r'/images/blat40x40.png')
         self.table_top_pixmap = QPixmap(base_dir + r'/images/blat80x80.png')
@@ -506,6 +587,47 @@ class Board(QFrame):
 
         self.debug_mode = not self.debug_mode
 
+    def getEmptyBeds(self):
+        emptyBeds = []
+
+        for obj in self.objects:
+            if ((obj.getName() == 'bed1' or
+                    obj.getName() == 'bed2' or
+                    obj.getName() == 'bed3' or
+                    obj.getName() == 'bed4') and
+                    (obj.getPixmap() is 4)):
+                emptyBeds.append(obj)
+
+        return emptyBeds
+
+    def getTakenBeds(self):
+        takenBeds = []
+
+        for obj in self.objects:
+            if ((obj.getName() == 'bed1' or
+                    obj.getName() == 'bed2' or
+                    obj.getName() == 'bed3' or
+                    obj.getName() == 'bed4') and
+                    (obj.getPixmap() is not 4)):
+                takenBeds.append(obj)
+
+        return takenBeds
+
+    def putSleepingPatientInto(self, bed_name):
+        for obj in self.objects:
+            if obj.getName() == bed_name and obj.getPixmap() != 6:
+                obj.changePixmap(6)
+
+    def putPatientInto(self, bed_name):
+        for obj in self.objects:
+            if obj.getName() == bed_name and obj.getPixmap() != 5:
+                obj.changePixmap(5)
+
+    def getPatientOufOf(self, bed_name):
+        for obj in self.objects:
+            if obj.getName() == bed_name and obj.getPixmap() != 4:
+                obj.changePixmap(4)
+
     def rotatePlayer(self, direction):
         """
         Function responsible for rotating players icon.
@@ -628,9 +750,73 @@ class Board(QFrame):
         """
 
         if event.timerId() == self.timer.timerId():
-            self.update()
+            takenBeds = self.getTakenBeds()
+
+            if not self.is_operating and takenBeds:
+                self.goToPatient(takenBeds)
+
         else:
             super(Board, self).timerEvent(event)
+
+    def goToPatient(self, takenBeds):
+        if takenBeds:
+            index = randint(0, len(takenBeds) - 1)
+            x, y = takenBeds[index].getPosition()
+            sizeX, sizeY = takenBeds[index].getSize()
+
+            pointX = int(x / 80)
+            pointY = int(y / 80)
+
+            if takenBeds[index].getName() == 'bed4':
+                pointY = int(pointY + sizeY / 80)
+            else:
+                pointX = int(pointX + sizeX / 80)
+
+            self.current_bed = takenBeds[index].getName()
+
+            playerX = int(self.player_x / 80)
+            playerY = int(self.player_y / 80)
+
+            if self.pathFinding == "aStar":
+                cameFrom, costSoFar = self.aStarSearch(self.graph,
+                                                      (playerX, playerY),
+                                                      (pointX, pointY))
+            elif self.pathFinding == "dijkstra":
+                cameFrom, costSoFar = self.dijkstraSearch(self.graph,
+                                                         (playerX, playerY),
+                                                         (pointX, pointY))
+
+            self.path = self.reconstructPath(cameFrom,
+            (playerX, playerY),
+            (pointX, pointY))
+
+            if playerX is pointX and playerY is pointY:
+                self.is_operating = True
+                diagnoseThread = threading.Thread(target=self.diagnose)
+                diagnoseThread.start()
+            else:
+                self.movePlayer()
+
+    def movePlayer(self):
+        pathToMove = self.path[1:]
+
+        for nextPointX, nextPointY in pathToMove:
+            nextPointX = nextPointX * 80
+            nextPointY = nextPointY * 80
+
+            if self.player_x < nextPointX:
+                while self.player_x < nextPointX:
+                    self.move('right')
+            elif self.player_x > nextPointX:
+                while self.player_x > nextPointX:
+                    self.move('left')
+            elif self.player_y < nextPointY:
+                while self.player_y < nextPointY:
+                    self.move('down')
+            elif self.player_y > nextPointY:
+                while self.player_y > nextPointY:
+                    self.move('up')
+
 
     def drawBoard(self, painter):
         """
@@ -728,6 +914,43 @@ class Board(QFrame):
         (x2, y2) = b
         return abs(x1 - x2) + abs(y1 - y2)
 
+    def dijkstraSearch(self, graph, start, goal):
+        """
+        Algorytm Dijkstry
+        """
+        steps = PriorityQueue()
+        steps.put(start, 0)
+        cameFrom = {}
+        costSoFar = {}
+        cameFrom[start] = None
+        costSoFar[start] = 0
+
+        # dopoki cos w liscie krokow
+        while not steps.empty():
+            # pozyskaj miejsce, w ktorym jestes
+            current = steps.get()
+
+            # jesli dotarles do celu, to przerwij
+            if current == goal:
+                break
+
+            # dla kazdego z sasiadow
+            for next in graph.neighbours(current):
+                # oblicz nowy koszt dojscia (dotychczasowy + do sasiada)
+                newCost = costSoFar[current] + graph.cost(current, next)
+                # jezeli koszt nie istnial wczesniej
+                # lub jest nizszy niz poprzednik
+                # to umiesc go w liscie kosztow do nastepnego kroku
+                if next not in costSoFar or newCost < costSoFar[next]:
+                    costSoFar[next] = newCost
+                    # jako priorytet ustaw koszt
+                    priority = newCost
+                    steps.put(next, priority)
+                    cameFrom[next] = current
+
+        # zwroc koszt dojscia i liste krokow (lista od konca)
+        return cameFrom, costSoFar
+
     def aStarSearch(self, graph, start, goal):
         frontier = PriorityQueue()
         frontier.put(start, 0)
@@ -793,3 +1016,27 @@ class Board(QFrame):
                 print("%%-%ds" % width % self.draw_tile(graph, (x, y),
                       style, width), end="")
             print()
+
+    @pyqtSlot(str)
+    def goTo(self, position):
+        x, y = position.split()
+
+        pointX = int(int(x) / 80)
+        pointY = int(int(y) / 80)
+
+        playerX = int(self.player_x / 80)
+        playerY = int(self.player_y / 80)
+
+        if self.pathFinding == "aStar":
+            cameFrom, costSoFar = self.aStarSearch(self.graph,
+                                                  (playerX, playerY),
+                                                  (pointX, pointY))
+        elif self.pathFinding == "dijkstra":
+            cameFrom, costSoFar = self.dijkstraSearch(self.graph,
+                                                     (playerX, playerY),
+                                                     (pointX, pointY))
+
+        self.path = self.reconstructPath(cameFrom,
+            (playerX, playerY),
+            (pointX, pointY))
+        self.movePlayer()

@@ -1,6 +1,10 @@
+
 from pyke import knowledge_engine
 from db.API import read_choroby_objawy_objaw, read_objawy_id
 from itertools import chain
+import threading
+import sqlite3
+
 
 
 engine = knowledge_engine.engine(__file__)
@@ -21,6 +25,3 @@ def get_symptoms_disease_relation_from_rows():
         for choroba in choroby:
             engine.add_universal_fact('choroby', 'symptom_of',
                                       (symptom, choroba))
-
-
-

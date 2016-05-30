@@ -2,7 +2,7 @@
 
 import sqlite3
 
-conn = sqlite3.connect('db/database.db')
+conn = sqlite3.connect('db/database.db', check_same_thread=False)
 print ("Database has opened successfully")
 
 #C-Create, R-Read, U-Update, D-Delete
@@ -138,11 +138,11 @@ def read_choroby_objawy_objaw(objaw):
         cur22.append(row)
     cur33=[]
     index=0
-    cur333=[]    
+    cur333=[]
     for row in cur22:
         cur3 = conn.execute('SELECT NAZWA_CHOROBY FROM CHOROBY WHERE ID=?', [cur22[index][0]])
         for row1 in cur3:
-            cur333.append(row1)           
+            cur333.append(row1)
         index = index+1
     ret = []
     index1=0

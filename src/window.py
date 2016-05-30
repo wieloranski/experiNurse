@@ -90,7 +90,11 @@ class MainWindow(QMainWindow):
         self.rightPanel.move.connect(self.board.move)
         self.rightPanel.debug.connect(self.board.debug)
         self.rightPanel.inference.connect(self.board.inferenceEmitted)
+        self.rightPanel.pathMethod.connect(self.board.pathMethod)
         self.console.textEmitted.connect(self.board.textEmitted)
+        self.console.newPatient.connect(self.board.newPatient)
+        self.console.goTo.connect(self.board.goTo)
+        self.board.emitText.connect(self.console.printText)
 
         # horizontal layout
         horizontalBox = QHBoxLayout()

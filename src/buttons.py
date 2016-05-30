@@ -27,6 +27,7 @@ class RightPanel(QWidget):
     move = pyqtSignal([str])
     debug = pyqtSignal()
     inference = pyqtSignal([str])
+    pathMethod = pyqtSignal([str])
 
     def __init__(self, parent):
 
@@ -39,7 +40,7 @@ class RightPanel(QWidget):
         verticalBox = QVBoxLayout()
 
         # adding components and positioning them properly
-        verticalBox.addWidget(PatientAlert(self))
+        verticalBox.addWidget(PatientAlert(self, self.inference, self.pathMethod))
         verticalBox.addStretch(1)
         verticalBox.addLayout(self.createSteeringWheel())
         verticalBox.addStretch(1)
@@ -133,9 +134,11 @@ class PatientAlert(QWidget):
     that requires immediate help.
     """
 
-    def __init__(self, parent):
+    def __init__(self, parent, inference, pathMethod):
 
         super().__init__(parent)
+        self.inference = inference
+        self.pathMethod = pathMethod
         self.initPatientAlert()
 
     def initPatientAlert(self):
@@ -161,7 +164,7 @@ class PatientAlert(QWidget):
         comboLabel.setAlignment(Qt.AlignLeft)
         comboLabel.setText('Metoda wnioskowania:')
 
-        # combo box with list of possible learning methods
+        # combo box with a list of possible learning methods
         comboBox = QComboBox(self)
 
         # adding learning methods
@@ -170,17 +173,37 @@ class PatientAlert(QWidget):
         # connecting singal's function with combo box
         comboBox.activated[str].connect(self.onActivated)
 
+        # label to combo box
+        pathComboLabel = QLabel(self)
+        pathComboLabel.setAlignment(Qt.AlignLeft)
+        pathComboLabel.setText('Metoda szukania drogi:')
+
+        # combo box with a list of possible learning methods
+        pathComboBox = QComboBox(self)
+
+        # adding learning methods
+        pathComboBox.addItem('A Star')
+        pathComboBox.addItem('Dijkstra')
+
+        # connecting singal's function with combo box
+        pathComboBox.activated[str].connect(self.pathAlg)
+
         # adding elements to layout
         verticalBox.addWidget(mainLabel)
         verticalBox.addWidget(medicationsTree)
         verticalBox.addWidget(comboLabel)
         verticalBox.addWidget(comboBox)
+        verticalBox.addWidget(pathComboLabel)
+        verticalBox.addWidget(pathComboBox)
 
         # connecting layout to widget
         self.setLayout(verticalBox)
 
     def onActivated(self, method):
         self.inference.emit(method)
+
+    def pathAlg(self, method):
+        self.pathMethod.emit(method)
 
 
 class MedicationsTree(QWidget):

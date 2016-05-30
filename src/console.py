@@ -21,6 +21,8 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QMargins
 class Console(QWidget):
 
     # signals
+    newPatient = pyqtSignal()
+    goTo = pyqtSignal([str])
     textEmitted = pyqtSignal([str])
 
     def __init__(self, parent):
@@ -60,7 +62,6 @@ class Console(QWidget):
              padding: 0;"
         )
         self.consoleInput.setFocus()
-
         self.consoleInput.returnPressed.connect(self.readText)
 
         # adding elements to layout
@@ -83,9 +84,17 @@ class Console(QWidget):
         # clear QLineEdit
         self.consoleInput.setText('')
 
-        # emit signal
-        self.textEmitted.emit(inputText)
+        # if new patient
+        if inputText == 'Nowy pacjent':
+            # emit new patient signal
+            self.newPatient.emit()
+        elif inputText.split()[0] == 'Idź':
+            self.goTo.emit(inputText.split(None, 1)[1])
+        elif inputText != '':
+            # emit symptoms in signal
+            self.textEmitted.emit(inputText)
 
+    @pyqtSlot(str)
     def printText(self, text):
         """
         Function responsible for printing text into QLabel
