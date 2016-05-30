@@ -14,8 +14,7 @@ def check_knowledge(dict, symptom):
                     if symptom != symp:
                         result = [symp, key]
                         return result
-                    else:
-                        return False
+                    
                         # print("masz: ", symp + "?")
                         # ans = input()
                         # if ans == 'tak':
