@@ -2,7 +2,7 @@ experiNurse
 
 - by dodać pacjenta należy wpisać "Nowy pacjent" w konsoli
 
-Instalacja Pyke (knowledge engine):
+Instalacja Pyke na platformie Linux (knowledge engine):
 
 1. Pyke pobieramy stąd: https://sourceforge.net/projects/pyke/files/latest/download?source=files
 
